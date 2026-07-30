@@ -1,6 +1,3 @@
-from datetime import datetime, timezone
-from uuid import uuid4
-
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
@@ -12,11 +9,8 @@ from app.models.schemas import (
     DatasetProfileResponse,
     DatasetSummary,
 )
-from app.services.profiling import profile_dataframe
-from app.services.upload_service import (
-    delete_stored_dataset,
-    store_uploaded_csv,
-)
+from app.services.dataset_manager import process_stored_dataset
+from app.services.upload_service import store_uploaded_csv
 
 router = APIRouter(tags=["Datasets"])
 
@@ -29,7 +23,7 @@ async def profile_dataset(
     request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-):
+) -> DatasetProfileResponse:
     settings = request.app.state.settings
 
     stored_dataset = await store_uploaded_csv(
@@ -37,56 +31,16 @@ async def profile_dataset(
         settings=settings,
     )
 
-    dataset_id = str(uuid4())
-
-    try:
-        dataset = Dataset(
-            id=dataset_id,
-            original_filename=stored_dataset.original_filename,
-            stored_filename=stored_dataset.stored_filename,
-            storage_path=str(stored_dataset.storage_path),
-            file_size_bytes=stored_dataset.file_size_bytes,
-            status="PROCESSING",
-        )
-
-        db.add(dataset)
-        db.flush()
-
-        profile = profile_dataframe(
-            dataframe=stored_dataset.dataframe,
-            filename=stored_dataset.original_filename,
-            settings=settings,
-        )
-
-        analysis = DatasetAnalysis(
-            id=str(uuid4()),
-            dataset_id=dataset.id,
-            filename=stored_dataset.original_filename,
-            file_size_bytes=stored_dataset.file_size_bytes,
-            row_count=profile.row_count,
-            column_count=profile.column_count,
-            duplicate_rows=profile.duplicate_rows,
-            reliability_score=profile.reliability_score,
-            profile_json=profile.model_dump(mode="json"),
-        )
-
-        dataset.status = "READY"
-        dataset.processed_at = datetime.now(timezone.utc)
-
-        db.add(analysis)
-        db.commit()
-        db.refresh(dataset)
-        db.refresh(analysis)
-
-    except Exception:
-        db.rollback()
-        delete_stored_dataset(stored_dataset.storage_path)
-        raise
+    processed = process_stored_dataset(
+        stored_dataset=stored_dataset,
+        settings=settings,
+        db=db,
+    )
 
     return DatasetProfileResponse(
-        dataset_id=dataset.id,
-        created_at=dataset.uploaded_at,
-        **profile.model_dump(),
+        dataset_id=processed.dataset.id,
+        created_at=processed.dataset.uploaded_at,
+        **processed.profile.model_dump(),
     )
 
 
@@ -96,7 +50,7 @@ async def profile_dataset(
 )
 def list_datasets(
     db: Session = Depends(get_db),
-):
+) -> list[DatasetSummary]:
     records = db.scalars(
         select(DatasetAnalysis).order_by(
             desc(DatasetAnalysis.created_at)
@@ -123,7 +77,7 @@ def list_datasets(
 def get_dataset(
     dataset_id: str,
     db: Session = Depends(get_db),
-):
+) -> DatasetProfileResponse:
     dataset = db.get(Dataset, dataset_id)
 
     if dataset is None or dataset.analysis is None:
