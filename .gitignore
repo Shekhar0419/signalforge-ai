@@ -1,9 +1,37 @@
+# Bytecode
 __pycache__/
 *.py[cod]
-.pytest_cache/
-.ruff_cache/
+
+# Python packaging
+*.egg-info/
+build/
+dist/
+
+# Virtual environments
 .venv/
-.env
-signalforge.db
-test_signalforge.db
+venv/
+env/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Database
 *.db
+*.sqlite3
+
+# Environment
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploaded datasets
+data/uploads/*
+!data/uploads/.
