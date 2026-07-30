@@ -1,10 +1,11 @@
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
-from app.db.models import DatasetAnalysis
+from app.db.models import Dataset, DatasetAnalysis
 from app.db.session import get_db
 from app.models.schemas import (
     DatasetProfile,
@@ -36,15 +37,30 @@ async def profile_dataset(
         settings=settings,
     )
 
+    dataset_id = str(uuid4())
+
     try:
+        dataset = Dataset(
+            id=dataset_id,
+            original_filename=stored_dataset.original_filename,
+            stored_filename=stored_dataset.stored_filename,
+            storage_path=str(stored_dataset.storage_path),
+            file_size_bytes=stored_dataset.file_size_bytes,
+            status="PROCESSING",
+        )
+
+        db.add(dataset)
+        db.flush()
+
         profile = profile_dataframe(
             dataframe=stored_dataset.dataframe,
             filename=stored_dataset.original_filename,
             settings=settings,
         )
 
-        record = DatasetAnalysis(
+        analysis = DatasetAnalysis(
             id=str(uuid4()),
+            dataset_id=dataset.id,
             filename=stored_dataset.original_filename,
             file_size_bytes=stored_dataset.file_size_bytes,
             row_count=profile.row_count,
@@ -54,9 +70,13 @@ async def profile_dataset(
             profile_json=profile.model_dump(mode="json"),
         )
 
-        db.add(record)
+        dataset.status = "READY"
+        dataset.processed_at = datetime.now(timezone.utc)
+
+        db.add(analysis)
         db.commit()
-        db.refresh(record)
+        db.refresh(dataset)
+        db.refresh(analysis)
 
     except Exception:
         db.rollback()
@@ -64,8 +84,8 @@ async def profile_dataset(
         raise
 
     return DatasetProfileResponse(
-        dataset_id=record.id,
-        created_at=record.created_at,
+        dataset_id=dataset.id,
+        created_at=dataset.uploaded_at,
         **profile.model_dump(),
     )
 
@@ -85,7 +105,7 @@ def list_datasets(
 
     return [
         DatasetSummary(
-            id=record.id,
+            id=record.dataset_id,
             filename=record.filename,
             row_count=record.row_count,
             column_count=record.column_count,
@@ -104,20 +124,20 @@ def get_dataset(
     dataset_id: str,
     db: Session = Depends(get_db),
 ):
-    record = db.get(DatasetAnalysis, dataset_id)
+    dataset = db.get(Dataset, dataset_id)
 
-    if record is None:
+    if dataset is None or dataset.analysis is None:
         raise HTTPException(
             status_code=404,
             detail="Dataset analysis not found.",
         )
 
     profile = DatasetProfile.model_validate(
-        record.profile_json
+        dataset.analysis.profile_json
     )
 
     return DatasetProfileResponse(
-        dataset_id=record.id,
-        created_at=record.created_at,
+        dataset_id=dataset.id,
+        created_at=dataset.uploaded_at,
         **profile.model_dump(),
     )
