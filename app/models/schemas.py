@@ -1,13 +1,12 @@
+from datetime import datetime
 from typing import Any
 from pydantic import BaseModel, Field
-
 
 class QualityIssue(BaseModel):
     severity: str
     code: str
     message: str
     column: str | None = None
-
 
 class ColumnProfile(BaseModel):
     name: str
@@ -22,7 +21,6 @@ class ColumnProfile(BaseModel):
     outlier_count: int = 0
     outlier_ratio: float = 0.0
 
-
 class DatasetProfile(BaseModel):
     filename: str
     row_count: int
@@ -31,3 +29,15 @@ class DatasetProfile(BaseModel):
     reliability_score: float
     columns: list[ColumnProfile]
     issues: list[QualityIssue]
+
+class DatasetProfileResponse(DatasetProfile):
+    dataset_id: str
+    created_at: datetime
+
+class DatasetSummary(BaseModel):
+    id: str
+    filename: str
+    row_count: int
+    column_count: int
+    reliability_score: float
+    created_at: datetime

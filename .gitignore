@@ -4,8 +4,6 @@ __pycache__/
 .ruff_cache/
 .venv/
 .env
-.coverage
-htmlcov/
-.idea/
-.vscode/
-.DS_Store
+signalforge.db
+test_signalforge.db
+*.db
