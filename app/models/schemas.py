@@ -31,12 +31,33 @@ class DatasetProfile(BaseModel):
     column_count: int
     duplicate_rows: int
     reliability_score: float
+
     columns: list[ColumnProfile]
     issues: list[QualityIssue]
-    column_metadata: list[dict[str, Any]] = Field(default_factory=list)
-    business_rules: list[dict[str, Any]] = Field(default_factory=list)
-    recommendations: list[str] = Field(default_factory=list)
-    ml_anomalies: list[dict[str, Any]] = Field(default_factory=list)
+
+    column_metadata: list[dict[str, Any]] = Field(
+        default_factory=list
+    )
+
+    business_rules: list[dict[str, Any]] = Field(
+        default_factory=list
+    )
+
+    recommendations: list[str] = Field(
+        default_factory=list
+    )
+
+    ml_anomalies: list[dict[str, Any]] = Field(
+        default_factory=list
+    )
+
+    preview_columns: list[str] = Field(
+        default_factory=list
+    )
+
+    preview_rows: list[dict[str, Any]] = Field(
+        default_factory=list
+    )
 
 
 class DatasetProfileResponse(DatasetProfile):

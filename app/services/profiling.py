@@ -2,7 +2,10 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from pandas.api.types import is_bool_dtype, is_numeric_dtype
+from pandas.api.types import (
+    is_bool_dtype,
+    is_numeric_dtype,
+)
 
 from app.core.config import Settings
 from app.models.schemas import (
@@ -13,6 +16,7 @@ from app.models.schemas import (
 from app.services.anomaly import iqr_outlier_mask
 from app.services.business_rules import evaluate_business_rules
 from app.services.column_metadata import build_column_metadata
+from app.services.dataset_preview import build_dataset_preview
 from app.services.ml_anomaly import detect_ml_anomalies
 from app.services.recommendations import generate_recommendations
 from app.services.scoring import calculate_reliability_score
@@ -74,10 +78,13 @@ def profile_dataframe(
     settings: Settings,
 ) -> DatasetProfile:
     """
-    Build a complete quality and anomaly profile for an uploaded dataframe.
+    Build a complete quality, anomaly, and preview profile
+    for an uploaded dataframe.
     """
     row_count = len(dataframe)
-    duplicate_rows = int(dataframe.duplicated().sum())
+    duplicate_rows = int(
+        dataframe.duplicated().sum()
+    )
 
     issues: list[QualityIssue] = []
     profiles: list[ColumnProfile] = []
@@ -96,7 +103,10 @@ def profile_dataframe(
     for column_name in dataframe.columns:
         series = dataframe[column_name]
 
-        missing_count = int(series.isna().sum())
+        missing_count = int(
+            series.isna().sum()
+        )
+
         missing_ratio = (
             missing_count / row_count
             if row_count
@@ -106,13 +116,16 @@ def profile_dataframe(
         unique_count = int(
             series.nunique(dropna=True)
         )
+
         unique_ratio = (
             unique_count / row_count
             if row_count
             else 0.0
         )
 
-        inferred_type = str(series.dtype)
+        inferred_type = str(
+            series.dtype
+        )
 
         is_numeric = (
             is_numeric_dtype(series)
@@ -139,7 +152,9 @@ def profile_dataframe(
         outlier_ratio = 0.0
 
         if is_numeric and row_count:
-            outlier_mask = iqr_outlier_mask(series)
+            outlier_mask = iqr_outlier_mask(
+                series
+            )
 
             outlier_count = int(
                 outlier_mask.fillna(False).sum()
@@ -233,33 +248,52 @@ def profile_dataframe(
             )
         )
 
-    reliability_score = calculate_reliability_score(
-        row_count,
-        duplicate_rows,
-        profiles,
+    reliability_score = (
+        calculate_reliability_score(
+            row_count,
+            duplicate_rows,
+            profiles,
+        )
     )
 
-    column_metadata = build_column_metadata(
-        dataframe
+    column_metadata = (
+        build_column_metadata(
+            dataframe
+        )
     )
 
-    business_rules = evaluate_business_rules(
-        dataframe
+    business_rules = (
+        evaluate_business_rules(
+            dataframe
+        )
     )
 
-    recommendations = generate_recommendations(
-        column_metadata=column_metadata,
-        business_rules=business_rules,
+    recommendations = (
+        generate_recommendations(
+            column_metadata=column_metadata,
+            business_rules=business_rules,
+        )
     )
 
-    ml_anomalies = detect_ml_anomalies(
-        dataframe
+    ml_anomalies = (
+        detect_ml_anomalies(
+            dataframe
+        )
+    )
+
+    preview_columns, preview_rows = (
+        build_dataset_preview(
+            dataframe=dataframe,
+            maximum_rows=20,
+        )
     )
 
     return DatasetProfile(
         filename=filename,
         row_count=row_count,
-        column_count=len(dataframe.columns),
+        column_count=len(
+            dataframe.columns
+        ),
         duplicate_rows=duplicate_rows,
         reliability_score=reliability_score,
         columns=profiles,
@@ -268,4 +302,6 @@ def profile_dataframe(
         business_rules=business_rules,
         recommendations=recommendations,
         ml_anomalies=ml_anomalies,
+        preview_columns=preview_columns,
+        preview_rows=preview_rows,
     )

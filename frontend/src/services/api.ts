@@ -57,6 +57,7 @@ export type QualityIssue = {
   code?: string;
   message?: string;
   column?: string | null;
+
   [key: string]: unknown;
 };
 
@@ -99,8 +100,20 @@ export type Recommendation =
 export type MLAnomaly = {
   row_index: number;
   anomaly_score: number;
+
   [key: string]: unknown;
 };
+
+export type PreviewValue =
+  | string
+  | number
+  | boolean
+  | null;
+
+export type PreviewRow = Record<
+  string,
+  PreviewValue
+>;
 
 export type DatasetProfileResponse = {
   dataset_id: string;
@@ -121,6 +134,9 @@ export type DatasetProfileResponse = {
   business_rules: BusinessRule[];
   recommendations: Recommendation[];
   ml_anomalies: MLAnomaly[];
+
+  preview_columns: string[];
+  preview_rows: PreviewRow[];
 
   ai_summary?: string;
   executive_summary?: string;
@@ -183,7 +199,7 @@ async function getErrorMessage(
       }
     }
   } catch {
-    // The backend may have returned a non-JSON error response.
+    // The backend may have returned a non-JSON response.
   }
 
   if (response.status === 404) {
@@ -211,7 +227,9 @@ async function getErrorMessage(
 
 function validateCsvFile(file: File): void {
   if (!file.name.toLowerCase().endsWith(".csv")) {
-    throw new Error("Please select a CSV file.");
+    throw new Error(
+      "Please select a CSV file.",
+    );
   }
 
   if (file.size === 0) {

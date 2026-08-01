@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import DatasetPreview from "./components/DatasetPreview";
 import ExecutiveSummary from "./components/ExecutiveSummary";
 import FileUploader from "./components/FileUploader";
 import Header from "./components/Header";
@@ -15,6 +16,7 @@ import ReliabilityGauge from "./components/ReliabilityGauge";
 import type {
   ColumnMetadata,
   DatasetProfileResponse,
+  PreviewRow,
   Recommendation,
 } from "./services/api";
 
@@ -327,6 +329,30 @@ function getColumnMetadata(
   return [];
 }
 
+function getPreviewColumns(
+  profile: DatasetProfileResponse | null,
+): string[] {
+  if (!profile) {
+    return [];
+  }
+
+  return Array.isArray(profile.preview_columns)
+    ? profile.preview_columns
+    : [];
+}
+
+function getPreviewRows(
+  profile: DatasetProfileResponse | null,
+): PreviewRow[] {
+  if (!profile) {
+    return [];
+  }
+
+  return Array.isArray(profile.preview_rows)
+    ? profile.preview_rows
+    : [];
+}
+
 function App() {
   const [
     datasetProfile,
@@ -350,6 +376,12 @@ function App() {
 
   const columnMetadata =
     getColumnMetadata(datasetProfile);
+
+  const previewColumns =
+    getPreviewColumns(datasetProfile);
+
+  const previewRows =
+    getPreviewRows(datasetProfile);
 
   function handleUploadComplete(
     profile: DatasetProfileResponse,
@@ -459,6 +491,13 @@ function App() {
         <section className="mt-10">
           <MissingValuesChart
             columns={columnMetadata}
+          />
+        </section>
+
+        <section className="mt-10">
+          <DatasetPreview
+            columns={previewColumns}
+            rows={previewRows}
           />
         </section>
 
