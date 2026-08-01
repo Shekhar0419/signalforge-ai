@@ -164,6 +164,14 @@ export type DatasetSummary = {
   created_at: string;
 };
 
+export type CopilotResponse = {
+  dataset_id: string;
+  question: string;
+  answer: string;
+  provider: string;
+  model: string | null;
+};
+
 type FastAPIValidationError = {
   loc?: Array<string | number>;
   msg?: string;
@@ -367,6 +375,71 @@ export async function getDataset(
   return (
     await response.json()
   ) as DatasetProfileResponse;
+}
+
+export async function askCopilot(
+  datasetId: string,
+  question: string,
+  signal?: AbortSignal,
+): Promise<CopilotResponse> {
+  const cleanedDatasetId =
+    datasetId.trim();
+
+  const cleanedQuestion =
+    question.trim();
+
+  if (!cleanedDatasetId) {
+    throw new Error(
+      "Dataset ID is required.",
+    );
+  }
+
+  if (!cleanedQuestion) {
+    throw new Error(
+      "The copilot question cannot be empty.",
+    );
+  }
+
+  let response: Response;
+
+  try {
+    response = await fetch(
+      `${API_BASE_URL}/datasets/${encodeURIComponent(
+        cleanedDatasetId,
+      )}/copilot`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          question: cleanedQuestion,
+        }),
+        signal,
+      },
+    );
+  } catch (error) {
+    if (
+      error instanceof DOMException &&
+      error.name === "AbortError"
+    ) {
+      throw error;
+    }
+
+    throw new Error(
+      "Unable to connect to the SignalForge backend.",
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      await getErrorMessage(response),
+    );
+  }
+
+  return (
+    await response.json()
+  ) as CopilotResponse;
 }
 
 export { API_BASE_URL };

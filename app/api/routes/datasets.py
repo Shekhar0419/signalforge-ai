@@ -1,18 +1,74 @@
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Request,
+    UploadFile,
+)
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from app.db.models import Dataset, DatasetAnalysis
 from app.db.session import get_db
+from app.models.copilot import (
+    CopilotRequest,
+    CopilotResponse,
+)
 from app.models.schemas import (
     DatasetProfile,
     DatasetProfileResponse,
     DatasetSummary,
 )
-from app.services.dataset_manager import process_stored_dataset
-from app.services.upload_service import store_uploaded_csv
+from app.services.copilot import (
+    answer_copilot_question,
+)
+from app.services.dataset_manager import (
+    process_stored_dataset,
+)
+from app.services.upload_service import (
+    store_uploaded_csv,
+)
 
 router = APIRouter(tags=["Datasets"])
+
+
+def _get_dataset_with_analysis(
+    dataset_id: str,
+    db: Session,
+) -> Dataset:
+    dataset = db.get(
+        Dataset,
+        dataset_id,
+    )
+
+    if (
+        dataset is None
+        or dataset.analysis is None
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Dataset analysis not found.",
+        )
+
+    return dataset
+
+
+def _load_dataset_profile(
+    dataset: Dataset,
+) -> DatasetProfile:
+    try:
+        return DatasetProfile.model_validate(
+            dataset.analysis.profile_json
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "The stored dataset profile could not "
+                "be loaded."
+            ),
+        ) from exc
 
 
 @router.post(
@@ -70,6 +126,45 @@ def list_datasets(
     ]
 
 
+@router.post(
+    "/datasets/{dataset_id}/copilot",
+    response_model=CopilotResponse,
+)
+def ask_dataset_copilot(
+    dataset_id: str,
+    request_body: CopilotRequest,
+    db: Session = Depends(get_db),
+) -> CopilotResponse:
+    dataset = _get_dataset_with_analysis(
+        dataset_id=dataset_id,
+        db=db,
+    )
+
+    profile = _load_dataset_profile(
+        dataset
+    )
+
+    try:
+        return answer_copilot_question(
+            dataset_id=dataset.id,
+            profile=profile,
+            question=request_body.question,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "The dataset copilot could not "
+                "generate an answer."
+            ),
+        ) from exc
+
+
 @router.get(
     "/datasets/{dataset_id}",
     response_model=DatasetProfileResponse,
@@ -78,16 +173,13 @@ def get_dataset(
     dataset_id: str,
     db: Session = Depends(get_db),
 ) -> DatasetProfileResponse:
-    dataset = db.get(Dataset, dataset_id)
+    dataset = _get_dataset_with_analysis(
+        dataset_id=dataset_id,
+        db=db,
+    )
 
-    if dataset is None or dataset.analysis is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Dataset analysis not found.",
-        )
-
-    profile = DatasetProfile.model_validate(
-        dataset.analysis.profile_json
+    profile = _load_dataset_profile(
+        dataset
     )
 
     return DatasetProfileResponse(

@@ -6,6 +6,14 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import AIInsights from "./components/AIInsights";
+import ColumnProfiles from "./components/ColumnProfiles";
+import CopilotChat, {
+  createCopilotMessage,
+} from "./components/CopilotChat";
+import type {
+  CopilotMessage,
+} from "./components/CopilotChat";
 import DatasetPreview from "./components/DatasetPreview";
 import ExecutiveSummary from "./components/ExecutiveSummary";
 import FileUploader from "./components/FileUploader";
@@ -13,6 +21,7 @@ import Header from "./components/Header";
 import MetricCard from "./components/MetricCard";
 import MissingValuesChart from "./components/MissingValuesChart";
 import ReliabilityGauge from "./components/ReliabilityGauge";
+import { askCopilot } from "./services/api";
 import type {
   ColumnMetadata,
   DatasetProfileResponse,
@@ -22,8 +31,13 @@ import type {
 
 type UnknownRecord = Record<string, unknown>;
 
-function isRecord(value: unknown): value is UnknownRecord {
-  return typeof value === "object" && value !== null;
+function isRecord(
+  value: unknown,
+): value is UnknownRecord {
+  return (
+    typeof value === "object" &&
+    value !== null
+  );
 }
 
 function getNumber(
@@ -192,7 +206,10 @@ function getQualityIssueCount(
         }
 
         const passed = rule.passed;
-        const status = rule.status;
+        const status =
+          typeof rule.status === "string"
+            ? rule.status.toLowerCase()
+            : "";
 
         if (
           passed === false ||
@@ -212,7 +229,10 @@ function getQualityIssueCount(
             ],
           );
 
-        return count + (violationCount ?? 0);
+        return (
+          count +
+          (violationCount ?? 0)
+        );
       },
       0,
     );
@@ -256,8 +276,13 @@ function getExecutiveSummary(
 function getRecommendationText(
   recommendation: unknown,
 ): string | null {
-  if (typeof recommendation === "string") {
-    return recommendation.trim() || null;
+  if (
+    typeof recommendation === "string"
+  ) {
+    return (
+      recommendation.trim() ||
+      null
+    );
   }
 
   if (!isRecord(recommendation)) {
@@ -318,11 +343,19 @@ function getColumnMetadata(
     return [];
   }
 
-  if (Array.isArray(profile.column_metadata)) {
+  if (
+    Array.isArray(
+      profile.column_metadata,
+    )
+  ) {
     return profile.column_metadata;
   }
 
-  if (Array.isArray(profile.columns)) {
+  if (
+    Array.isArray(
+      profile.columns,
+    )
+  ) {
     return profile.columns;
   }
 
@@ -336,7 +369,9 @@ function getPreviewColumns(
     return [];
   }
 
-  return Array.isArray(profile.preview_columns)
+  return Array.isArray(
+    profile.preview_columns,
+  )
     ? profile.preview_columns
     : [];
 }
@@ -348,7 +383,9 @@ function getPreviewRows(
     return [];
   }
 
-  return Array.isArray(profile.preview_rows)
+  return Array.isArray(
+    profile.preview_rows,
+  )
     ? profile.preview_rows
     : [];
 }
@@ -362,31 +399,187 @@ function App() {
       null,
     );
 
+  const [
+    copilotMessages,
+    setCopilotMessages,
+  ] =
+    useState<CopilotMessage[]>([]);
+
+  const [
+    isCopilotLoading,
+    setIsCopilotLoading,
+  ] = useState(false);
+
+  const [
+    copilotError,
+    setCopilotError,
+  ] =
+    useState<string | null>(null);
+
   const qualityIssueCount =
-    getQualityIssueCount(datasetProfile);
+    getQualityIssueCount(
+      datasetProfile,
+    );
 
   const anomalyCount =
-    getAnomalyCount(datasetProfile);
+    getAnomalyCount(
+      datasetProfile,
+    );
 
   const recommendations =
-    getRecommendations(datasetProfile);
+    getRecommendations(
+      datasetProfile,
+    );
 
   const executiveSummary =
-    getExecutiveSummary(datasetProfile);
+    getExecutiveSummary(
+      datasetProfile,
+    );
 
   const columnMetadata =
-    getColumnMetadata(datasetProfile);
+    getColumnMetadata(
+      datasetProfile,
+    );
 
   const previewColumns =
-    getPreviewColumns(datasetProfile);
+    getPreviewColumns(
+      datasetProfile,
+    );
 
   const previewRows =
-    getPreviewRows(datasetProfile);
+    getPreviewRows(
+      datasetProfile,
+    );
 
   function handleUploadComplete(
     profile: DatasetProfileResponse,
   ): void {
     setDatasetProfile(profile);
+    setCopilotMessages([]);
+    setCopilotError(null);
+    setIsCopilotLoading(false);
+  }
+
+  async function handleCopilotQuestion(
+    question: string,
+  ): Promise<void> {
+    if (
+      !datasetProfile ||
+      isCopilotLoading
+    ) {
+      return;
+    }
+
+    const userMessage =
+      createCopilotMessage(
+        "user",
+        question,
+      );
+
+    setCopilotMessages(
+      (currentMessages) => [
+        ...currentMessages,
+        userMessage,
+      ],
+    );
+
+    setCopilotError(null);
+    setIsCopilotLoading(true);
+
+    try {
+      const response =
+        await askCopilot(
+          datasetProfile.dataset_id,
+          question,
+        );
+
+      const assistantMessage =
+        createCopilotMessage(
+          "assistant",
+          response.answer,
+        );
+
+      setCopilotMessages(
+        (currentMessages) => [
+          ...currentMessages,
+          assistantMessage,
+        ],
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : (
+              "The AI copilot could " +
+              "not answer the question."
+            );
+
+      setCopilotError(message);
+    } finally {
+      setIsCopilotLoading(false);
+    }
+  }
+
+  function handleClearConversation(): void {
+    setCopilotMessages([]);
+    setCopilotError(null);
+  }
+
+  async function handleRegenerateLastAnswer(): Promise<void> {
+    if (
+      !datasetProfile ||
+      isCopilotLoading
+    ) {
+      return;
+    }
+
+    const lastUserMessage =
+      [...copilotMessages]
+        .reverse()
+        .find(
+          (message) =>
+            message.role === "user",
+        );
+
+    if (!lastUserMessage) {
+      return;
+    }
+
+    setCopilotError(null);
+    setIsCopilotLoading(true);
+
+    try {
+      const response =
+        await askCopilot(
+          datasetProfile.dataset_id,
+          lastUserMessage.content,
+        );
+
+      const assistantMessage =
+        createCopilotMessage(
+          "assistant",
+          response.answer,
+        );
+
+      setCopilotMessages(
+        (currentMessages) => [
+          ...currentMessages,
+          assistantMessage,
+        ],
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : (
+              "The AI copilot could " +
+              "not regenerate the answer."
+            );
+
+      setCopilotError(message);
+    } finally {
+      setIsCopilotLoading(false);
+    }
   }
 
   return (
@@ -442,7 +635,8 @@ function App() {
         <section className="mt-10 grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
           <ReliabilityGauge
             score={
-              datasetProfile?.reliability_score ??
+              datasetProfile
+                ?.reliability_score ??
               null
             }
           />
@@ -451,21 +645,27 @@ function App() {
             <MetricCard
               title="Rows analyzed"
               value={formatInteger(
-                datasetProfile?.row_count ??
+                datasetProfile
+                  ?.row_count ??
                   null,
               )}
               description="Total number of dataset records processed by the profiling pipeline."
-              icon={<Database size={22} />}
+              icon={
+                <Database size={22} />
+              }
             />
 
             <MetricCard
               title="Columns analyzed"
               value={formatInteger(
-                datasetProfile?.column_count ??
+                datasetProfile
+                  ?.column_count ??
                   null,
               )}
               description="Total number of columns included in the uploaded dataset."
-              icon={<ShieldCheck size={22} />}
+              icon={
+                <ShieldCheck size={22} />
+              }
             />
 
             <MetricCard
@@ -474,7 +674,9 @@ function App() {
                 qualityIssueCount,
               )}
               description="Missing values, duplicate records, invalid formats, and business-rule failures."
-              icon={<FileCheck2 size={22} />}
+              icon={
+                <FileCheck2 size={22} />
+              }
             />
 
             <MetricCard
@@ -483,27 +685,77 @@ function App() {
                 anomalyCount,
               )}
               description="Potential unusual records detected by the Isolation Forest model."
-              icon={<Activity size={22} />}
+              icon={
+                <Activity size={22} />
+              }
             />
           </div>
         </section>
 
         <section className="mt-10">
+          <AIInsights
+            profile={datasetProfile}
+          />
+        </section>
+
+        <section className="mt-10">
           <MissingValuesChart
-            columns={columnMetadata}
+            columns={
+              columnMetadata
+            }
           />
         </section>
 
         <section className="mt-10">
           <DatasetPreview
-            columns={previewColumns}
+            columns={
+              previewColumns
+            }
             rows={previewRows}
+          />
+        </section>
+
+        <section className="mt-10">
+          <ColumnProfiles
+            columns={
+              columnMetadata
+            }
+          />
+        </section>
+
+        <section className="mt-10">
+          <CopilotChat
+            datasetId={
+              datasetProfile
+                ?.dataset_id ??
+              null
+            }
+            messages={
+              copilotMessages
+            }
+            isLoading={
+              isCopilotLoading
+            }
+            errorMessage={
+              copilotError
+            }
+            onSendQuestion={
+              handleCopilotQuestion
+            }
+            onClearConversation={
+              handleClearConversation
+            }
+            onRegenerateLastAnswer={
+              handleRegenerateLastAnswer
+            }
           />
         </section>
 
         <section className="mt-10 grid gap-6 lg:grid-cols-2">
           <ExecutiveSummary
-            summary={executiveSummary}
+            summary={
+              executiveSummary
+            }
           />
 
           <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -551,9 +803,8 @@ function App() {
               </ol>
             ) : (
               <p className="mt-4 text-sm leading-7 text-slate-500">
-                Upload a dataset to receive prioritized
-                data-cleaning, validation, and risk-reduction
-                recommendations.
+                Upload a dataset to receive prioritized data-cleaning,
+                validation, and risk-reduction recommendations.
               </p>
             )}
           </article>
