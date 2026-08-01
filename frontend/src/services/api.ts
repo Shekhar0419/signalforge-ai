@@ -1,67 +1,141 @@
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
+  import.meta.env.VITE_API_BASE_URL ??
+  "http://127.0.0.1:8000/api/v1";
 
 export type TopValue = {
   value: string | number | boolean | null;
   count: number;
+  ratio?: number;
 };
 
 export type ColumnMetadata = {
   column_name?: string;
+  name?: string;
+
   logical_type?: string;
+  inferred_type?: string;
   pandas_dtype?: string;
+
   row_count?: number;
+  non_null_count?: number;
+
   null_count?: number;
   null_ratio?: number;
+
+  missing_count?: number;
+  missing_ratio?: number;
+
   unique_count?: number;
   unique_ratio?: number;
+
   memory_usage_bytes?: number;
-  minimum?: number | string | null;
-  maximum?: number | string | null;
+
+  min?: number | string | boolean | null;
+  max?: number | string | boolean | null;
+
+  minimum?: number | string | boolean | null;
+  maximum?: number | string | boolean | null;
+
   mean?: number | null;
   median?: number | null;
+
+  std?: number | null;
   standard_deviation?: number | null;
-  top_values?: TopValue[];
+
+  statistics?: Record<string, unknown>;
+
+  top_values?: TopValue[] | Record<string, number>;
+
+  outlier_count?: number;
+  outlier_ratio?: number;
+
+  [key: string]: unknown;
+};
+
+export type QualityIssue = {
+  severity?: string;
+  code?: string;
+  message?: string;
+  column?: string | null;
   [key: string]: unknown;
 };
 
 export type BusinessRule = {
   column?: string;
   rule?: string;
+  rule_name?: string;
   description?: string;
+
   passed?: boolean;
+  status?: string;
+
+  violations?: number;
   violation_count?: number;
+  failed_count?: number;
+
   severity?: string;
+
   [key: string]: unknown;
 };
 
-export type Recommendation = {
-  title?: string;
-  description?: string;
-  priority?: string;
-  category?: string;
-  [key: string]: unknown;
-};
+export type Recommendation =
+  | string
+  | {
+      title?: string;
+      name?: string;
+      action?: string;
+      category?: string;
+
+      description?: string;
+      recommendation?: string;
+      message?: string;
+      reason?: string;
+
+      priority?: string;
+
+      [key: string]: unknown;
+    };
 
 export type MLAnomaly = {
   row_index: number;
   anomaly_score: number;
+  [key: string]: unknown;
 };
 
 export type DatasetProfileResponse = {
   dataset_id: string;
   created_at: string;
-  filename?: string;
+
+  filename: string;
+
   row_count: number;
   column_count: number;
+  duplicate_rows: number;
   reliability_score: number;
-  duplicate_rows?: number;
-  total_missing_values?: number;
-  column_metadata?: ColumnMetadata[];
-  business_rules?: BusinessRule[];
-  recommendations?: Recommendation[];
-  ml_anomalies?: MLAnomaly[];
+
+  columns: ColumnMetadata[];
+  issues: QualityIssue[];
+
+  column_metadata: ColumnMetadata[];
+
+  business_rules: BusinessRule[];
+  recommendations: Recommendation[];
+  ml_anomalies: MLAnomaly[];
+
   ai_summary?: string;
+  executive_summary?: string;
+  summary?: string;
+  dataset_summary?: string;
+
+  total_missing_values?: number;
+  quality_issue_count?: number;
+  total_quality_issues?: number;
+  issue_count?: number;
+
+  anomaly_count?: number;
+  ml_anomaly_count?: number;
+  anomalies_count?: number;
+
   [key: string]: unknown;
 };
 
@@ -74,101 +148,207 @@ export type DatasetSummary = {
   created_at: string;
 };
 
-type FastAPIErrorBody = {
-  detail?: string | Array<{
-    loc?: Array<string | number>;
-    msg?: string;
-    type?: string;
-  }>;
+type FastAPIValidationError = {
+  loc?: Array<string | number>;
+  msg?: string;
+  type?: string;
 };
 
-async function getErrorMessage(response: Response): Promise<string> {
+type FastAPIErrorBody = {
+  detail?: string | FastAPIValidationError[];
+};
+
+async function getErrorMessage(
+  response: Response,
+): Promise<string> {
   try {
-    const body = (await response.json()) as FastAPIErrorBody;
+    const body =
+      (await response.json()) as FastAPIErrorBody;
 
     if (typeof body.detail === "string") {
       return body.detail;
     }
 
     if (Array.isArray(body.detail)) {
-      return body.detail
-        .map((error) => error.msg ?? "Validation error")
-        .join(", ");
+      const messages = body.detail
+        .map((error) => error.msg)
+        .filter(
+          (message): message is string =>
+            typeof message === "string" &&
+            message.trim().length > 0,
+        );
+
+      if (messages.length > 0) {
+        return messages.join(", ");
+      }
     }
   } catch {
-    // The server may have returned plain text or an empty response.
+    // The backend may have returned a non-JSON error response.
+  }
+
+  if (response.status === 404) {
+    return "The requested resource could not be found.";
+  }
+
+  if (response.status === 413) {
+    return "The selected file exceeds the upload limit.";
+  }
+
+  if (response.status === 415) {
+    return "Only CSV files are supported.";
+  }
+
+  if (response.status === 422) {
+    return "The request could not be validated.";
+  }
+
+  if (response.status >= 500) {
+    return "The backend encountered an unexpected error.";
   }
 
   return `Request failed with status ${response.status}.`;
+}
+
+function validateCsvFile(file: File): void {
+  if (!file.name.toLowerCase().endsWith(".csv")) {
+    throw new Error("Please select a CSV file.");
+  }
+
+  if (file.size === 0) {
+    throw new Error(
+      "The selected CSV file is empty.",
+    );
+  }
 }
 
 export async function uploadDataset(
   file: File,
   signal?: AbortSignal,
 ): Promise<DatasetProfileResponse> {
-  if (!file.name.toLowerCase().endsWith(".csv")) {
-    throw new Error("Please select a CSV file.");
-  }
-
-  if (file.size === 0) {
-    throw new Error("The selected CSV file is empty.");
-  }
+  validateCsvFile(file);
 
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(
-    `${API_BASE_URL}/datasets/profile`,
-    {
-      method: "POST",
-      body: formData,
-      signal,
-    },
-  );
+  let response: Response;
 
-  if (!response.ok) {
-    throw new Error(await getErrorMessage(response));
+  try {
+    response = await fetch(
+      `${API_BASE_URL}/datasets/profile`,
+      {
+        method: "POST",
+        body: formData,
+        signal,
+      },
+    );
+  } catch (error) {
+    if (
+      error instanceof DOMException &&
+      error.name === "AbortError"
+    ) {
+      throw error;
+    }
+
+    throw new Error(
+      "Unable to connect to the SignalForge backend.",
+    );
   }
 
-  return (await response.json()) as DatasetProfileResponse;
+  if (!response.ok) {
+    throw new Error(
+      await getErrorMessage(response),
+    );
+  }
+
+  return (
+    await response.json()
+  ) as DatasetProfileResponse;
 }
 
 export async function getDatasets(
   signal?: AbortSignal,
 ): Promise<DatasetSummary[]> {
-  const response = await fetch(`${API_BASE_URL}/datasets`, {
-    method: "GET",
-    signal,
-  });
+  let response: Response;
 
-  if (!response.ok) {
-    throw new Error(await getErrorMessage(response));
+  try {
+    response = await fetch(
+      `${API_BASE_URL}/datasets`,
+      {
+        method: "GET",
+        signal,
+      },
+    );
+  } catch (error) {
+    if (
+      error instanceof DOMException &&
+      error.name === "AbortError"
+    ) {
+      throw error;
+    }
+
+    throw new Error(
+      "Unable to connect to the SignalForge backend.",
+    );
   }
 
-  return (await response.json()) as DatasetSummary[];
+  if (!response.ok) {
+    throw new Error(
+      await getErrorMessage(response),
+    );
+  }
+
+  return (
+    await response.json()
+  ) as DatasetSummary[];
 }
 
 export async function getDataset(
   datasetId: string,
   signal?: AbortSignal,
 ): Promise<DatasetProfileResponse> {
-  const cleanedDatasetId = datasetId.trim();
+  const cleanedDatasetId =
+    datasetId.trim();
 
   if (!cleanedDatasetId) {
-    throw new Error("Dataset ID is required.");
+    throw new Error(
+      "Dataset ID is required.",
+    );
   }
 
-  const response = await fetch(
-    `${API_BASE_URL}/datasets/${encodeURIComponent(cleanedDatasetId)}`,
-    {
-      method: "GET",
-      signal,
-    },
-  );
+  let response: Response;
+
+  try {
+    response = await fetch(
+      `${API_BASE_URL}/datasets/${encodeURIComponent(
+        cleanedDatasetId,
+      )}`,
+      {
+        method: "GET",
+        signal,
+      },
+    );
+  } catch (error) {
+    if (
+      error instanceof DOMException &&
+      error.name === "AbortError"
+    ) {
+      throw error;
+    }
+
+    throw new Error(
+      "Unable to connect to the SignalForge backend.",
+    );
+  }
 
   if (!response.ok) {
-    throw new Error(await getErrorMessage(response));
+    throw new Error(
+      await getErrorMessage(response),
+    );
   }
 
-  return (await response.json()) as DatasetProfileResponse;
+  return (
+    await response.json()
+  ) as DatasetProfileResponse;
 }
+
+export { API_BASE_URL };

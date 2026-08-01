@@ -12,20 +12,28 @@ from app.core.config import get_settings
 settings = get_settings()
 
 logging.basicConfig(
-    level=getattr(logging, settings.log_level.upper(), logging.INFO),
+    level=getattr(
+        logging,
+        settings.log_level.upper(),
+        logging.INFO,
+    ),
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
+
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.settings = settings
+
     logger.info(
         "signalforge_started environment=%s",
         settings.app_env,
     )
+
     yield
+
     logger.info("signalforge_stopped")
 
 
@@ -36,12 +44,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# ----------------------------
-# CORS Configuration
-# ----------------------------
+
+# Development CORS configuration.
+# This allows the React/Vite frontend to run on any local port,
+# including ports such as 5173, 5176, 5181, and others.
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):517\d",
+    allow_origin_regex=r"^http://(localhost|127\.0\.0\.1):\d+$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -49,7 +58,10 @@ app.add_middleware(
 
 
 @app.middleware("http")
-async def request_context(request: Request, call_next):
+async def request_context(
+    request: Request,
+    call_next,
+):
     request_id = request.headers.get(
         "X-Request-ID",
         str(uuid4()),
@@ -69,7 +81,10 @@ async def request_context(request: Request, call_next):
     )
 
     logger.info(
-        "request_completed method=%s path=%s status=%s duration_ms=%.2f request_id=%s",
+        (
+            "request_completed method=%s path=%s "
+            "status=%s duration_ms=%.2f request_id=%s"
+        ),
         request.method,
         request.url.path,
         response.status_code,
