@@ -135,6 +135,112 @@ Every upload begins as:
 Version 1 · ORIGINAL
 ---
 
+---
+
+# Application Screenshots
+
+The following screenshots demonstrate the complete end-to-end workflow of SignalForge AI, from dataset ingestion through profiling, AI-assisted quality analysis, cleaning, version management, and reliability tracking.
+
+---
+
+## Dashboard
+
+The dashboard provides the primary entry point for the platform. Users can upload CSV datasets, initiate automated profiling, and immediately view the current dataset version and analysis status.
+
+<p align="center">
+  <img src="docs/screenshots/dashboard.png" width="1000">
+</p>
+
+---
+
+## Dataset Quality Metrics
+
+SignalForge automatically profiles every uploaded dataset and calculates key quality metrics including reliability score, missing values, duplicate records, column statistics, anomaly counts, and overall dataset health.
+
+<p align="center">
+  <img src="docs/screenshots/metrics.png" width="1000">
+</p>
+
+---
+
+## AI Insights
+
+The platform generates AI-powered insights by combining statistical profiling, business-rule validation, anomaly detection, and quality analysis. These insights help users quickly identify potential data-quality issues before downstream analytics or machine-learning workflows.
+
+<p align="center">
+  <img src="docs/screenshots/ai-insights.png" width="1000">
+</p>
+
+---
+
+## Cleaning Assistant
+
+The Cleaning Assistant recommends deterministic cleaning operations together with executable code examples. Users can review suggested transformations before applying them.
+
+<p align="center">
+  <img src="docs/screenshots/cleaning-assistant.png" width="1000">
+</p>
+
+---
+
+## Before & After Cleaning Preview
+
+SignalForge generates a safe transformation preview that allows users to review cleaning results without modifying the original dataset. Users can compare quality metrics, inspect transformed rows, and validate changes before saving a new version.
+
+<p align="center">
+  <img src="docs/screenshots/before and after cleaning.png" width="1000">
+</p>
+
+---
+
+## Cleaned Dataset Preview
+
+Users can inspect the cleaned dataset before downloading or saving it as a new dataset version, ensuring complete transparency in every transformation.
+
+<p align="center">
+  <img src="docs/screenshots/cleaned dataset preview.png" width="1000">
+</p>
+
+---
+
+## Dataset Version History
+
+Every cleaned dataset is stored as a separate immutable version. SignalForge preserves the original dataset while allowing users to revisit historical analyses and track dataset evolution over time.
+
+<p align="center">
+  <img src="docs/screenshots/dataset history.png" width="1000">
+</p>
+
+---
+
+## Dataset Version Comparison
+
+The Version Comparison module provides side-by-side analytics between any two dataset versions. Users can compare reliability score, missing values, duplicate records, outliers, business-rule violations, anomaly counts, and other quality indicators.
+
+<p align="center">
+  <img src="docs/screenshots/versions comparison.png" width="1000">
+</p>
+
+---
+
+## Reliability Trend Analytics
+
+SignalForge visualizes how overall dataset quality evolves across multiple dataset versions, making it easier to measure the impact of cleaning operations over time.
+
+<p align="center">
+  <img src="docs/screenshots/Relibility Trend.png" width="1000">
+</p>
+
+---
+
+## AI Data Copilot
+
+The integrated AI Copilot enables users to ask natural-language questions about uploaded datasets, receive contextual insights, understand quality issues, and obtain intelligent recommendations directly within the application.
+
+<p align="center">
+  <img src="docs/screenshots/ai data copilot.png" width="1000">
+</p>
+
 # Author
 
 ## Shekhar Jampula
