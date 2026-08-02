@@ -4,9 +4,15 @@ import {
   FileCheck2,
   ShieldCheck,
 } from "lucide-react";
-import { useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 
 import AIInsights from "./components/AIInsights";
+import CleaningAssistant from "./components/CleaningAssistant";
+import CleaningPreview from "./components/CleaningPreview";
 import ColumnProfiles from "./components/ColumnProfiles";
 import CopilotChat, {
   createCopilotMessage,
@@ -14,6 +20,7 @@ import CopilotChat, {
 import type {
   CopilotMessage,
 } from "./components/CopilotChat";
+import DatasetHistory from "./components/DatasetHistory";
 import DatasetPreview from "./components/DatasetPreview";
 import ExecutiveSummary from "./components/ExecutiveSummary";
 import FileUploader from "./components/FileUploader";
@@ -21,15 +28,28 @@ import Header from "./components/Header";
 import MetricCard from "./components/MetricCard";
 import MissingValuesChart from "./components/MissingValuesChart";
 import ReliabilityGauge from "./components/ReliabilityGauge";
-import { askCopilot } from "./services/api";
+import VersionComparison from "./components/VersionComparison";
+import VersionTrendChart from "./components/VersionTrendChart";
+
+import {
+  askCopilot,
+  getDataset,
+  getDatasets,
+} from "./services/api";
+
 import type {
   ColumnMetadata,
   DatasetProfileResponse,
+  DatasetSummary,
   PreviewRow,
   Recommendation,
+  SaveVersionResponse,
 } from "./services/api";
 
-type UnknownRecord = Record<string, unknown>;
+type UnknownRecord = Record<
+  string,
+  unknown
+>;
 
 function isRecord(
   value: unknown,
@@ -45,7 +65,8 @@ function getNumber(
   possibleKeys: string[],
 ): number | null {
   for (const key of possibleKeys) {
-    const value = source[key];
+    const value =
+      source[key];
 
     if (
       typeof value === "number" &&
@@ -63,9 +84,12 @@ function getArray(
   possibleKeys: string[],
 ): unknown[] {
   for (const key of possibleKeys) {
-    const value = source[key];
+    const value =
+      source[key];
 
-    if (Array.isArray(value)) {
+    if (
+      Array.isArray(value)
+    ) {
       return value;
     }
   }
@@ -78,7 +102,8 @@ function getString(
   possibleKeys: string[],
 ): string | null {
   for (const key of possibleKeys) {
-    const value = source[key];
+    const value =
+      source[key];
 
     if (
       typeof value === "string" &&
@@ -94,7 +119,9 @@ function getString(
 function formatInteger(
   value: number | null,
 ): string {
-  if (value === null) {
+  if (
+    value === null
+  ) {
     return "—";
   }
 
@@ -104,70 +131,86 @@ function formatInteger(
 }
 
 function getAnomalyCount(
-  profile: DatasetProfileResponse | null,
+  profile:
+    | DatasetProfileResponse
+    | null,
 ): number | null {
-  if (!profile) {
+  if (
+    !profile
+  ) {
     return null;
   }
 
   const profileRecord =
     profile as UnknownRecord;
 
-  const directCount = getNumber(
-    profileRecord,
-    [
-      "anomaly_count",
-      "ml_anomaly_count",
-      "anomalies_count",
-    ],
-  );
+  const directCount =
+    getNumber(
+      profileRecord,
+      [
+        "anomaly_count",
+        "ml_anomaly_count",
+        "anomalies_count",
+      ],
+    );
 
-  if (directCount !== null) {
+  if (
+    directCount !== null
+  ) {
     return directCount;
   }
 
-  const anomalies = getArray(
-    profileRecord,
-    [
-      "ml_anomalies",
-      "anomalies",
-      "anomaly_records",
-    ],
-  );
+  const anomalies =
+    getArray(
+      profileRecord,
+      [
+        "ml_anomalies",
+        "anomalies",
+        "anomaly_records",
+      ],
+    );
 
   return anomalies.length;
 }
 
 function getQualityIssueCount(
-  profile: DatasetProfileResponse | null,
+  profile:
+    | DatasetProfileResponse
+    | null,
 ): number | null {
-  if (!profile) {
+  if (
+    !profile
+  ) {
     return null;
   }
 
   const profileRecord =
     profile as UnknownRecord;
 
-  const directCount = getNumber(
-    profileRecord,
-    [
-      "quality_issue_count",
-      "total_quality_issues",
-      "issue_count",
-    ],
-  );
+  const directCount =
+    getNumber(
+      profileRecord,
+      [
+        "quality_issue_count",
+        "total_quality_issues",
+        "issue_count",
+      ],
+    );
 
-  if (directCount !== null) {
+  if (
+    directCount !== null
+  ) {
     return directCount;
   }
 
-  const issues = getArray(
-    profileRecord,
-    [
-      "issues",
-      "quality_issues",
-    ],
-  );
+  const issues =
+    getArray(
+      profileRecord,
+      [
+        "issues",
+        "quality_issues",
+      ],
+    );
 
   const missingValues =
     getNumber(
@@ -189,26 +232,36 @@ function getQualityIssueCount(
       ],
     ) ?? 0;
 
-  const businessRules = getArray(
-    profileRecord,
-    [
-      "business_rules",
-      "rule_results",
-      "business_rule_results",
-    ],
-  );
+  const businessRules =
+    getArray(
+      profileRecord,
+      [
+        "business_rules",
+        "rule_results",
+        "business_rule_results",
+      ],
+    );
 
   const failedRuleCount =
     businessRules.reduce<number>(
-      (count, rule) => {
-        if (!isRecord(rule)) {
+      (
+        count,
+        rule,
+      ) => {
+        if (
+          !isRecord(rule)
+        ) {
           return count;
         }
 
-        const passed = rule.passed;
+        const passed =
+          rule.passed;
+
         const status =
-          typeof rule.status === "string"
-            ? rule.status.toLowerCase()
+          typeof rule.status ===
+          "string"
+            ? rule.status
+                .toLowerCase()
             : "";
 
         if (
@@ -231,7 +284,10 @@ function getQualityIssueCount(
 
         return (
           count +
-          (violationCount ?? 0)
+          (
+            violationCount ??
+            0
+          )
         );
       },
       0,
@@ -246,9 +302,13 @@ function getQualityIssueCount(
 }
 
 function getExecutiveSummary(
-  profile: DatasetProfileResponse | null,
+  profile:
+    | DatasetProfileResponse
+    | null,
 ): string {
-  if (!profile) {
+  if (
+    !profile
+  ) {
     return (
       "Upload a dataset to generate a concise explanation of its " +
       "reliability, key risks, likely root causes, and recommended actions."
@@ -268,8 +328,10 @@ function getExecutiveSummary(
         "dataset_summary",
       ],
     ) ??
-    "The dataset analysis completed successfully. Review the reliability " +
+    (
+      "The dataset analysis completed successfully. Review the reliability " +
       "score, detected quality issues, anomalies, and recommendations below."
+    )
   );
 }
 
@@ -277,7 +339,8 @@ function getRecommendationText(
   recommendation: unknown,
 ): string | null {
   if (
-    typeof recommendation === "string"
+    typeof recommendation ===
+    "string"
   ) {
     return (
       recommendation.trim() ||
@@ -285,41 +348,61 @@ function getRecommendationText(
     );
   }
 
-  if (!isRecord(recommendation)) {
+  if (
+    !isRecord(
+      recommendation,
+    )
+  ) {
     return null;
   }
 
-  const title = getString(
-    recommendation,
-    [
-      "title",
-      "name",
-      "action",
-      "category",
-    ],
-  );
+  const title =
+    getString(
+      recommendation,
+      [
+        "title",
+        "name",
+        "action",
+        "category",
+      ],
+    );
 
-  const description = getString(
-    recommendation,
-    [
-      "description",
-      "recommendation",
-      "message",
-      "reason",
-    ],
-  );
+  const description =
+    getString(
+      recommendation,
+      [
+        "description",
+        "recommendation",
+        "message",
+        "reason",
+      ],
+    );
 
-  if (title && description) {
-    return `${title}: ${description}`;
+  if (
+    title &&
+    description
+  ) {
+    return (
+      `${title}: ${description}`
+    );
   }
 
-  return title ?? description;
+  return (
+    title ??
+    description
+  );
 }
 
 function getRecommendations(
-  profile: DatasetProfileResponse | null,
-): Recommendation[] | unknown[] {
-  if (!profile) {
+  profile:
+    | DatasetProfileResponse
+    | null,
+):
+  | Recommendation[]
+  | unknown[] {
+  if (
+    !profile
+  ) {
     return [];
   }
 
@@ -337,9 +420,13 @@ function getRecommendations(
 }
 
 function getColumnMetadata(
-  profile: DatasetProfileResponse | null,
+  profile:
+    | DatasetProfileResponse
+    | null,
 ): ColumnMetadata[] {
-  if (!profile) {
+  if (
+    !profile
+  ) {
     return [];
   }
 
@@ -348,7 +435,9 @@ function getColumnMetadata(
       profile.column_metadata,
     )
   ) {
-    return profile.column_metadata;
+    return (
+      profile.column_metadata
+    );
   }
 
   if (
@@ -363,9 +452,13 @@ function getColumnMetadata(
 }
 
 function getPreviewColumns(
-  profile: DatasetProfileResponse | null,
+  profile:
+    | DatasetProfileResponse
+    | null,
 ): string[] {
-  if (!profile) {
+  if (
+    !profile
+  ) {
     return [];
   }
 
@@ -377,9 +470,13 @@ function getPreviewColumns(
 }
 
 function getPreviewRows(
-  profile: DatasetProfileResponse | null,
+  profile:
+    | DatasetProfileResponse
+    | null,
 ): PreviewRow[] {
-  if (!profile) {
+  if (
+    !profile
+  ) {
     return [];
   }
 
@@ -395,26 +492,53 @@ function App() {
     datasetProfile,
     setDatasetProfile,
   ] =
-    useState<DatasetProfileResponse | null>(
-      null,
-    );
+    useState<
+      DatasetProfileResponse | null
+    >(null);
+
+  const [
+    datasetHistory,
+    setDatasetHistory,
+  ] =
+    useState<
+      DatasetSummary[]
+    >([]);
+
+  const [
+    isHistoryLoading,
+    setIsHistoryLoading,
+  ] =
+    useState(false);
+
+  const [
+    historyError,
+    setHistoryError,
+  ] =
+    useState<
+      string | null
+    >(null);
 
   const [
     copilotMessages,
     setCopilotMessages,
   ] =
-    useState<CopilotMessage[]>([]);
+    useState<
+      CopilotMessage[]
+    >([]);
 
   const [
     isCopilotLoading,
     setIsCopilotLoading,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     copilotError,
     setCopilotError,
   ] =
-    useState<string | null>(null);
+    useState<
+      string | null
+    >(null);
 
   const qualityIssueCount =
     getQualityIssueCount(
@@ -451,13 +575,131 @@ function App() {
       datasetProfile,
     );
 
-  function handleUploadComplete(
-    profile: DatasetProfileResponse,
-  ): void {
-    setDatasetProfile(profile);
+  const loadDatasetHistory =
+    useCallback(
+      async (): Promise<void> => {
+        setIsHistoryLoading(
+          true,
+        );
+
+        setHistoryError(
+          null,
+        );
+
+        try {
+          const datasets =
+            await getDatasets();
+
+          setDatasetHistory(
+            datasets,
+          );
+        } catch (error) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : (
+                  "Dataset history could " +
+                  "not be loaded."
+                );
+
+          setHistoryError(
+            message,
+          );
+        } finally {
+          setIsHistoryLoading(
+            false,
+          );
+        }
+      },
+      [],
+    );
+
+  useEffect(() => {
+    void loadDatasetHistory();
+  }, [
+    loadDatasetHistory,
+  ]);
+
+  function resetCopilot(): void {
     setCopilotMessages([]);
     setCopilotError(null);
     setIsCopilotLoading(false);
+  }
+
+  function handleUploadComplete(
+    profile:
+      DatasetProfileResponse,
+  ): void {
+    setDatasetProfile(
+      profile,
+    );
+
+    resetCopilot();
+
+    void loadDatasetHistory();
+  }
+
+  async function handleOpenDataset(
+    datasetId: string,
+  ): Promise<void> {
+    if (
+      isHistoryLoading
+    ) {
+      return;
+    }
+
+    setIsHistoryLoading(
+      true,
+    );
+
+    setHistoryError(
+      null,
+    );
+
+    try {
+      const profile =
+        await getDataset(
+          datasetId,
+        );
+
+      setDatasetProfile(
+        profile,
+      );
+
+      resetCopilot();
+
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : (
+              "The saved dataset analysis " +
+              "could not be opened."
+            );
+
+      setHistoryError(
+        message,
+      );
+    } finally {
+      setIsHistoryLoading(
+        false,
+      );
+    }
+  }
+
+  async function handleVersionSaved(
+    _savedVersion:
+      SaveVersionResponse,
+  ): Promise<void> {
+    setHistoryError(
+      null,
+    );
+
+    await loadDatasetHistory();
   }
 
   async function handleCopilotQuestion(
@@ -477,19 +719,27 @@ function App() {
       );
 
     setCopilotMessages(
-      (currentMessages) => [
+      (
+        currentMessages,
+      ) => [
         ...currentMessages,
         userMessage,
       ],
     );
 
-    setCopilotError(null);
-    setIsCopilotLoading(true);
+    setCopilotError(
+      null,
+    );
+
+    setIsCopilotLoading(
+      true,
+    );
 
     try {
       const response =
         await askCopilot(
-          datasetProfile.dataset_id,
+          datasetProfile
+            .dataset_id,
           question,
         );
 
@@ -500,7 +750,9 @@ function App() {
         );
 
       setCopilotMessages(
-        (currentMessages) => [
+        (
+          currentMessages,
+        ) => [
           ...currentMessages,
           assistantMessage,
         ],
@@ -514,9 +766,13 @@ function App() {
               "not answer the question."
             );
 
-      setCopilotError(message);
+      setCopilotError(
+        message,
+      );
     } finally {
-      setIsCopilotLoading(false);
+      setIsCopilotLoading(
+        false,
+      );
     }
   }
 
@@ -534,25 +790,37 @@ function App() {
     }
 
     const lastUserMessage =
-      [...copilotMessages]
+      [
+        ...copilotMessages,
+      ]
         .reverse()
         .find(
           (message) =>
-            message.role === "user",
+            message.role ===
+            "user",
         );
 
-    if (!lastUserMessage) {
+    if (
+      !lastUserMessage
+    ) {
       return;
     }
 
-    setCopilotError(null);
-    setIsCopilotLoading(true);
+    setCopilotError(
+      null,
+    );
+
+    setIsCopilotLoading(
+      true,
+    );
 
     try {
       const response =
         await askCopilot(
-          datasetProfile.dataset_id,
-          lastUserMessage.content,
+          datasetProfile
+            .dataset_id,
+          lastUserMessage
+            .content,
         );
 
       const assistantMessage =
@@ -562,7 +830,9 @@ function App() {
         );
 
       setCopilotMessages(
-        (currentMessages) => [
+        (
+          currentMessages,
+        ) => [
           ...currentMessages,
           assistantMessage,
         ],
@@ -576,9 +846,13 @@ function App() {
               "not regenerate the answer."
             );
 
-      setCopilotError(message);
+      setCopilotError(
+        message,
+      );
     } finally {
-      setIsCopilotLoading(false);
+      setIsCopilotLoading(
+        false,
+      );
     }
   }
 
@@ -619,8 +893,57 @@ function App() {
                 </span>
 
                 <span>
-                  ID: {datasetProfile.dataset_id}
+                  {
+                    datasetProfile
+                      .filename
+                  }
                 </span>
+
+                <span className="text-blue-300">
+                  •
+                </span>
+
+                <span>
+                  ID:{" "}
+                  {
+                    datasetProfile
+                      .dataset_id
+                  }
+                </span>
+
+                {typeof datasetProfile
+                  .version_number ===
+                  "number" && (
+                  <>
+                    <span className="text-blue-300">
+                      •
+                    </span>
+
+                    <span>
+                      Version{" "}
+                      {
+                        datasetProfile
+                          .version_number
+                      }
+                    </span>
+                  </>
+                )}
+
+                {datasetProfile
+                  .version_type && (
+                  <>
+                    <span className="text-blue-300">
+                      •
+                    </span>
+
+                    <span>
+                      {
+                        datasetProfile
+                          .version_type
+                      }
+                    </span>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -651,7 +974,9 @@ function App() {
               )}
               description="Total number of dataset records processed by the profiling pipeline."
               icon={
-                <Database size={22} />
+                <Database
+                  size={22}
+                />
               }
             />
 
@@ -664,7 +989,9 @@ function App() {
               )}
               description="Total number of columns included in the uploaded dataset."
               icon={
-                <ShieldCheck size={22} />
+                <ShieldCheck
+                  size={22}
+                />
               }
             />
 
@@ -675,7 +1002,9 @@ function App() {
               )}
               description="Missing values, duplicate records, invalid formats, and business-rule failures."
               icon={
-                <FileCheck2 size={22} />
+                <FileCheck2
+                  size={22}
+                />
               }
             />
 
@@ -686,7 +1015,9 @@ function App() {
               )}
               description="Potential unusual records detected by the Isolation Forest model."
               icon={
-                <Activity size={22} />
+                <Activity
+                  size={22}
+                />
               }
             />
           </div>
@@ -694,9 +1025,88 @@ function App() {
 
         <section className="mt-10">
           <AIInsights
-            profile={datasetProfile}
+            profile={
+              datasetProfile
+            }
           />
         </section>
+
+        <section className="mt-10">
+          <CleaningAssistant
+            datasetId={
+              datasetProfile
+                ?.dataset_id ??
+              null
+            }
+          />
+        </section>
+
+        <section className="mt-10">
+          <CleaningPreview
+            datasetId={
+              datasetProfile
+                ?.dataset_id ??
+              null
+            }
+            onVersionSaved={
+              handleVersionSaved
+            }
+          />
+        </section>
+
+        {datasetProfile && (
+          <section className="mt-10">
+            <DatasetHistory
+              datasets={
+                datasetHistory
+              }
+              activeDatasetId={
+                datasetProfile
+                  .dataset_id
+              }
+              isLoading={
+                isHistoryLoading
+              }
+              errorMessage={
+                historyError
+              }
+              onOpenDataset={
+                handleOpenDataset
+              }
+              onRefresh={
+                loadDatasetHistory
+              }
+            />
+          </section>
+        )}
+
+        {datasetProfile && (
+          <section className="mt-10">
+            <VersionComparison
+              datasets={
+                datasetHistory
+              }
+              activeDatasetId={
+                datasetProfile
+                  .dataset_id
+              }
+            />
+          </section>
+        )}
+
+        {datasetProfile && (
+          <section className="mt-10">
+            <VersionTrendChart
+              datasets={
+                datasetHistory
+              }
+              activeDatasetId={
+                datasetProfile
+                  .dataset_id
+              }
+            />
+          </section>
+        )}
 
         <section className="mt-10">
           <MissingValuesChart
@@ -711,7 +1121,9 @@ function App() {
             columns={
               previewColumns
             }
-            rows={previewRows}
+            rows={
+              previewRows
+            }
           />
         </section>
 
@@ -761,7 +1173,9 @@ function App() {
           <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center gap-3">
               <div className="rounded-xl bg-amber-50 p-2 text-amber-700">
-                <FileCheck2 size={20} />
+                <FileCheck2
+                  size={20}
+                />
               </div>
 
               <h3 className="text-lg font-semibold text-slate-950">
@@ -769,10 +1183,14 @@ function App() {
               </h3>
             </div>
 
-            {recommendations.length > 0 ? (
+            {recommendations.length >
+            0 ? (
               <ol className="mt-4 space-y-3">
                 {recommendations
-                  .slice(0, 5)
+                  .slice(
+                    0,
+                    5,
+                  )
                   .map(
                     (
                       item,
@@ -786,11 +1204,16 @@ function App() {
 
                       return (
                         <li
-                          key={`${index}-${text}`}
+                          key={
+                            `${index}-${text}`
+                          }
                           className="flex gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4"
                         >
                           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-700 text-xs font-bold text-white">
-                            {index + 1}
+                            {
+                              index +
+                              1
+                            }
                           </span>
 
                           <p className="text-sm leading-6 text-slate-600">
