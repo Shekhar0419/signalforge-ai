@@ -65,7 +65,7 @@ async def lifespan(
 
 app = FastAPI(
     title="SignalForge AI",
-    version="0.3.0",
+    version="1.0.0",
     description=(
         "AI-powered Dataset Quality "
         "Intelligence Platform"
@@ -81,6 +81,7 @@ app.add_middleware(
     allow_origins=[
         "http://127.0.0.1:5173",
         "http://localhost:5173",
+        "https://signalforge-ai-two.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
