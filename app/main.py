@@ -38,10 +38,7 @@ logging.basicConfig(
         settings.log_level.upper(),
         logging.INFO,
     ),
-    format=(
-        "%(asctime)s %(levelname)s "
-        "%(name)s %(message)s"
-    ),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 
 logger = logging.getLogger(__name__)
@@ -58,9 +55,7 @@ async def lifespan(
 
     yield
 
-    logger.info(
-        "signalforge_stopped",
-    )
+    logger.info("signalforge_stopped")
 
 
 app = FastAPI(
@@ -95,27 +90,19 @@ async def add_request_metadata(
     call_next,
 ):
     request_id = (
-        request.headers.get(
-            "X-Request-ID",
-        )
+        request.headers.get("X-Request-ID")
         or str(uuid4())
     )
 
     started_at = perf_counter()
 
-    response = await call_next(
-        request,
-    )
+    response = await call_next(request)
 
     process_time_ms = (
-        perf_counter() -
-        started_at
+        perf_counter() - started_at
     ) * 1000
 
-    response.headers[
-        "X-Request-ID"
-    ] = request_id
-
+    response.headers["X-Request-ID"] = request_id
     response.headers[
         "X-Process-Time-Ms"
     ] = f"{process_time_ms:.2f}"
