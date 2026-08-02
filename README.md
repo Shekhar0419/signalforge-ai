@@ -2,6 +2,13 @@
 
 <p align="center">
   <strong>AI-Powered Dataset Quality Intelligence Platform</strong>
+  </p>
+## Architecture
+
+<p align="center">
+  <img src="docs/architecture.png"
+       alt="SignalForge AI Architecture"
+       width="1000"/>
 </p>
 
 <p align="center">
