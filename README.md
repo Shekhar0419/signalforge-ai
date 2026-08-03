@@ -241,6 +241,20 @@ The integrated AI Copilot enables users to ask natural-language questions about 
   <img src="docs/screenshots/ai data copilot.png" width="1000">
 </p>
 
+
+## 🚀 Live Demo
+
+**Frontend**
+
+https://signalforge-ai-two.vercel.app
+
+**Backend API**
+
+https://signalforge-api-iord.onrender.com
+
+**API Documentation**
+
+https://signalforge-api-iord.onrender.com/docs
 # Author
 
 ## Shekhar Jampula
