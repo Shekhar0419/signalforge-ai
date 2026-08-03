@@ -1,13 +1,23 @@
-# 🚀 SignalForge AI
-
 <p align="center">
-  <img src="docs/architecture.png" width="1000" alt="SignalForge AI"/>
+  <img src="docs/banner.png" width="100%" alt="SignalForge AI Banner"/>
 </p>
+
+<h1 align="center">🚀 SignalForge AI</h1>
 
 <p align="center">
 <b>AI-Powered Dataset Quality Intelligence Platform</b><br>
 Analyze, profile, clean, version, compare, and monitor dataset quality using a production-ready FastAPI + React platform.
 </p>
+
+<p align="center">
+
+[![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-Vercel-success?style=for-the-badge&logo=vercel)](https://signalforge-ai-two.vercel.app)
+[![Backend API](https://img.shields.io/badge/⚡_Backend-Render-blue?style=for-the-badge&logo=render)](https://signalforge-api-iord.onrender.com)
+[![API Docs](https://img.shields.io/badge/📚_Swagger-Docs-green?style=for-the-badge&logo=swagger)](https://signalforge-api-iord.onrender.com/docs)
+
+</p>
+
+---
 
 ---
 
