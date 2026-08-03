@@ -9,6 +9,12 @@
 Analyze, profile, clean, version, compare, and monitor dataset quality using a production-ready FastAPI + React platform.
 </p>
 
+# 🏗 Architecture
+
+<p align="center">
+  <img src="docs/architecture.png" width="1000" alt="SignalForge AI Architecture"/>
+</p>
+
 <p align="center">
 
 [![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-Vercel-success?style=for-the-badge&logo=vercel)](https://signalforge-ai-two.vercel.app)
